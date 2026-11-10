@@ -82,6 +82,16 @@
     }
     .pdf-arrow { flex: 0 0 auto; color: var(--accent); font-size: 1.1rem; }
 
+    .area-group { margin-bottom: 26px; }
+    .area-heading {
+        font-size: 0.95rem;
+        font-weight: 700;
+        color: var(--accent);
+        margin: 0 0 10px 2px;
+        padding-left: 10px;
+        border-left: 4px solid var(--accent-dim);
+    }
+
     .state-msg {
         text-align: center;
         color: var(--text-dim);
@@ -122,10 +132,29 @@
     const PAGES_BASE = `https://${OWNER}.github.io/${REPO}/`;
     const API_URL = `https://api.github.com/repos/${OWNER}/${REPO}/contents/`;
 
-    // 既知のファイルには読みやすいタイトルを付ける（未登録のPDFはファイル名をそのまま表示）
-    const TITLES = {
-        'tl-27.pdf': 'トゥモローランド ガイド（モンスターズ・インク＆スター・ツアーズ）',
+    // ファイル名の接頭辞（例: tl-27.pdf の "tl"）→ パークのエリア名。
+    // ファイル名から自動判定するので、同じ命名規則でPDFを増やすだけで自動的にグループ分けされます。
+    const AREA_NAMES = {
+        wb: 'ワールドバザール',
+        al: 'アドベンチャーランド',
+        wl: 'ウエスタンランド',
+        cc: 'クリッターカントリー',
+        fl: 'ファンタジーランド',
+        tt: 'トゥーンタウン',
+        tl: 'トゥモローランド',
     };
+    // 表示順（パークの実際の並び順）。最後に、どの接頭辞にも当てはまらないファイルをまとめる。
+    const AREA_ORDER  = ['wb', 'al', 'wl', 'cc', 'fl', 'tt', 'tl'];
+    const OTHER_KEY   = 'other';
+    const OTHER_LABEL = 'マップ・その他';
+
+    function classify(name) {
+        const m = name.match(/^([a-z]{2})-(\d+)\.pdf$/i);
+        if (m && AREA_NAMES[m[1].toLowerCase()]) {
+            return { area: m[1].toLowerCase(), num: parseInt(m[2], 10) };
+        }
+        return { area: OTHER_KEY, num: 0 };
+    }
 
     const listEl = document.getElementById('list');
     const stateMsgEl = document.getElementById('stateMsg');
@@ -138,24 +167,50 @@
             return;
         }
 
+        // エリアごとにグループ分け
+        const groups = {};
         for (const file of files) {
-            const a = document.createElement('a');
-            a.className = 'pdf-card';
-            a.href = PAGES_BASE + encodeURIComponent(file.name);
-            a.target = '_blank';
-            a.rel = 'noopener';
+            const { area, num } = classify(file.name);
+            (groups[area] ||= []).push({ name: file.name, num });
+        }
 
-            const title = TITLES[file.name] || file.name;
+        const order = [...AREA_ORDER, OTHER_KEY];
+        for (const area of order) {
+            const items = groups[area];
+            if (!items || items.length === 0) continue;
+            items.sort((a, b) => a.num - b.num || a.name.localeCompare(b.name));
 
-            a.innerHTML = `
-                <span class="pdf-icon">PDF</span>
-                <span class="pdf-info">
-                    <span class="pdf-title">${title}</span><br>
-                    <span class="pdf-file">${file.name}</span>
-                </span>
-                <span class="pdf-arrow">&rarr;</span>
-            `;
-            listEl.appendChild(a);
+            const section = document.createElement('div');
+            section.className = 'area-group';
+
+            const heading = document.createElement('div');
+            heading.className = 'area-heading';
+            heading.textContent = AREA_NAMES[area] || OTHER_LABEL;
+            section.appendChild(heading);
+
+            for (const item of items) {
+                const a = document.createElement('a');
+                a.className = 'pdf-card';
+                a.href = PAGES_BASE + encodeURIComponent(item.name);
+                a.target = '_blank';
+                a.rel = 'noopener';
+
+                const title = area === OTHER_KEY
+                    ? item.name.replace(/\.pdf$/i, '')
+                    : `No. ${item.num}`;
+
+                a.innerHTML = `
+                    <span class="pdf-icon">PDF</span>
+                    <span class="pdf-info">
+                        <span class="pdf-title">${title}</span><br>
+                        <span class="pdf-file">${item.name}</span>
+                    </span>
+                    <span class="pdf-arrow">&rarr;</span>
+                `;
+                section.appendChild(a);
+            }
+
+            listEl.appendChild(section);
         }
     }
 
