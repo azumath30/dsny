@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ディズニーアトラクションガイド</title>
+<style>
+    :root {
+        --bg: #0f1a33;
+        --card: #16213f;
+        --card-border: #27345c;
+        --accent: #f4c95d;
+        --accent-dim: #caa23f;
+        --text: #eef1fb;
+        --text-dim: #9aa6c7;
+    }
+    * { box-sizing: border-box; }
+    body {
+        margin: 0;
+        min-height: 100vh;
+        background: radial-gradient(circle at 20% 0%, #1c2b52 0%, var(--bg) 55%);
+        color: var(--text);
+        font-family: 'Hiragino Sans', 'Yu Gothic UI', 'Meiryo', sans-serif;
+        padding: 32px 16px 60px;
+    }
+    .wrap { max-width: 720px; margin: 0 auto; }
+    header { text-align: center; margin-bottom: 32px; }
+    header h1 {
+        font-size: 1.7rem;
+        margin: 0 0 8px;
+        background: linear-gradient(90deg, var(--accent), #ffe9b0);
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+    }
+    header p { color: var(--text-dim); font-size: 0.85rem; margin: 0; }
+
+    .list { display: flex; flex-direction: column; gap: 14px; }
+
+    .pdf-card {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        background: var(--card);
+        border: 1px solid var(--card-border);
+        border-radius: 14px;
+        padding: 16px 18px;
+        text-decoration: none;
+        color: var(--text);
+        transition: transform .15s ease, border-color .15s ease, background .15s ease;
+    }
+    .pdf-card:hover {
+        border-color: var(--accent-dim);
+        background: #1b2748;
+        transform: translateY(-2px);
+    }
+    .pdf-icon {
+        flex: 0 0 auto;
+        width: 42px; height: 42px;
+        border-radius: 10px;
+        background: #3a2f12;
+        color: var(--accent);
+        display: flex; align-items: center; justify-content: center;
+        font-size: 0.68rem;
+        font-weight: 700;
+        letter-spacing: .5px;
+        border: 1px solid var(--accent-dim);
+    }
+    .pdf-info { flex: 1 1 auto; min-width: 0; }
+    .pdf-title {
+        font-size: 1rem;
+        font-weight: 600;
+        margin: 0 0 3px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    .pdf-file {
+        font-size: 0.75rem;
+        color: var(--text-dim);
+        font-family: ui-monospace, Consolas, monospace;
+    }
+    .pdf-arrow { flex: 0 0 auto; color: var(--accent); font-size: 1.1rem; }
+
+    .state-msg {
+        text-align: center;
+        color: var(--text-dim);
+        font-size: 0.9rem;
+        padding: 30px 10px;
+    }
+    .state-msg.error { color: #ff9b9b; }
+
+    footer {
+        text-align: center;
+        margin-top: 36px;
+        font-size: 0.75rem;
+        color: var(--text-dim);
+    }
+    footer a { color: var(--accent-dim); }
+</style>
+</head>
+<body>
+    <div class="wrap">
+        <header>
+            <h1>ディズニーアトラクションガイド</h1>
+            <p>azumath30.github.io/dsny の PDF 一覧</p>
+        </header>
+
+        <div id="list" class="list">
+            <div class="state-msg" id="stateMsg">読み込み中...</div>
+        </div>
+
+        <footer>
+            <a href="https://github.com/azumath30/dsny" target="_blank" rel="noopener">GitHub リポジトリを見る</a>
+        </footer>
+    </div>
+
+<script>
+    // リポジトリ直下にPDFを置くだけで、このページの一覧にも自動で表示されます。
+    const OWNER = 'azumath30';
+    const REPO  = 'dsny';
+    const PAGES_BASE = `https://${OWNER}.github.io/${REPO}/`;
+    const API_URL = `https://api.github.com/repos/${OWNER}/${REPO}/contents/`;
+
+    // 既知のファイルには読みやすいタイトルを付ける（未登録のPDFはファイル名をそのまま表示）
+    const TITLES = {
+        'tl-27.pdf': 'トゥモローランド ガイド（モンスターズ・インク＆スター・ツアーズ）',
+    };
+
+    const listEl = document.getElementById('list');
+    const stateMsgEl = document.getElementById('stateMsg');
+
+    function renderPdfs(files) {
+        listEl.innerHTML = '';
+
+        if (files.length === 0) {
+            listEl.innerHTML = '<div class="state-msg">まだPDFがありません</div>';
+            return;
+        }
+
+        for (const file of files) {
+            const a = document.createElement('a');
+            a.className = 'pdf-card';
+            a.href = PAGES_BASE + encodeURIComponent(file.name);
+            a.target = '_blank';
+            a.rel = 'noopener';
+
+            const title = TITLES[file.name] || file.name;
+
+            a.innerHTML = `
+                <span class="pdf-icon">PDF</span>
+                <span class="pdf-info">
+                    <span class="pdf-title">${title}</span><br>
+                    <span class="pdf-file">${file.name}</span>
+                </span>
+                <span class="pdf-arrow">&rarr;</span>
+            `;
+            listEl.appendChild(a);
+        }
+    }
+
+    async function loadPdfList() {
+        try {
+            const res = await fetch(API_URL);
+            if (!res.ok) throw new Error(`GitHub API error: ${res.status}`);
+            const items = await res.json();
+            const pdfs = items
+                .filter(it => it.type === 'file' && it.name.toLowerCase().endsWith('.pdf'))
+                .sort((a, b) => a.name.localeCompare(b.name));
+            renderPdfs(pdfs);
+        } catch (err) {
+            console.error(err);
+            stateMsgEl.textContent = '一覧の取得に失敗しました。時間をおいて再読み込みしてください。';
+            stateMsgEl.classList.add('error');
+        }
+    }
+
+    loadPdfList();
+</script>
+</body>
+</html>
